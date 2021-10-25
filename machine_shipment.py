@@ -27,6 +27,7 @@ YELLOW = 'Color.YELLOW'
 colors = {BLACK: 0, RED: 1, WHITE: 2, YELLOW: 3}
 
 # Initialize variables
+is_running = False
 sensed_color = None
 sensor_distance = 0
 car_at_start = True
@@ -34,243 +35,252 @@ object_list = []
 object_color = None
 
 # Load settings
-settings_file = open("../../settings.json")
-settings = ujson.loads(str(settings_file.readlines()))
+settings_file = open("/home/robot/Smart-Warehouse-Machine/settings.json")
+settings = ujson.load(settings_file)
 settings_file.close()
 
-
-def run_belt(value):
-    def _run_belt(value):
-        belt_motor.run(value)
-
-    run_belt_thread = Thread(target=_run_belt, args=(value,))
-    run_belt_thread.start()
-
-    return run_belt_thread
+# Message header
+headers = {"Content-type": "application/json"}
 
 
 def watch_object():
-    def _watch_object():
-        object_buffer = []
-        global object_list
-        global sensor_distance
+    global is_running
+    global object_list
+    global sensor_distance
 
-        saw_belt = None
-        wait_for_belt = False
+    def not_in_list():
+        cond1 = len(object_list) == 0
+        cond2 = len(object_list) > 0 and time.time() - object_list[-1] > 1.5
 
-        while True:
-            distance = distance_sensor.distance()
-            sensor_distance = min(59, distance)
+        return cond1 or cond2
 
-            if sensor_distance < 56:
-                object_buffer = []
-                saw_belt = time.time()
+    object_buffer = []
+    saw_belt = None
+    wait_for_belt = False
 
-                if wait_for_belt:
-                    print("two object now..")
-                    object_list = [time.time() - 5] * 2
+    while is_running:
+        distance = distance_sensor.distance()
+        sensor_distance = min(59, distance)
 
-            elif 30 < sensor_distance < 52 and (
-                    len(object_list) == 0 or (time.time() - object_list[-1] > 1.5)) and not wait_for_belt:
-                if len(object_buffer) < 30:
-                    if len(object_buffer) > 0 and time.time() - object_buffer[0] > 0.5:
-                        object_buffer = []
+        if sensor_distance > 56:
+            object_buffer = []
+            saw_belt = time.time()
 
-                    object_buffer.append(time.time())
-                    continue
+            if wait_for_belt:
+                print("two object now")
+                object_list = [time.time() - 5] * 2
 
-                object_buffer = []
-                object_list.append(time.time())
+        elif 30 < sensor_distance < 52 and not_in_list() and not wait_for_belt:
+            if len(object_buffer) < 30:
+                if len(object_buffer) > 0 and time.time() - object_buffer[0] > 0.5:
+                    object_buffer = []
 
-                if time.time() - saw_belt > 1:
-                    wait_for_belt = True
+                object_buffer.append(time.time())
+                continue
 
-    watch_object_thread = Thread(target=_watch_object)
-    watch_object_thread.start()
+            object_buffer = []
+            object_list.append(time.time())
 
-    return watch_object_thread
-
-
-def watch_color():
-    def _watch_color():
-        global object_color
-        global object_list
-        global sensed_color
-
-        color_buffer = []
-
-        while True:
-            color = str(color_sensor.color())
-
-            if color in colors.keys():
-                if color == BLACK:
-                    color_buffer = []
-                elif len(color_buffer) != 0 and color_buffer[-1] != color:
-                    color_buffer = []
-                elif len(color_buffer) == 0:
-                    color_buffer.append(color)
-                elif len(color_buffer) < 15 and color_buffer[-1] == color:
-                    color_buffer.append(color)
-                elif len(color_buffer) >= 15:
-                    object_color = color_buffer[-1]
-                    sensed_color = color_buffer[-1]
-
-            wait(10)
-
-    watch_color_thread = Thread(target=_watch_color)
-    watch_color_thread.start()
-
-    return watch_color_thread
+            if time.time() - saw_belt > 1:
+                wait_for_belt = True
 
 
 def catch_object():
-    def _catch_object():
-        global object_list
-        global car_at_start
+    global is_running
+    global object_list
+    global car_at_start
 
-        while True:
-            if len(object_list) > 0:
+    while is_running:
+        if len(object_list) > 0:
+            print("doing catch")
+            saw_time = object_list[0]
 
-                saw_time = object_list[0]
+            if (time.time() - saw_time) < 1.0:
+                continue
+            else:
+                wait(500)
 
-                if (time.time() - saw_time) < 1.0:
-                    continue
-                else:
-                    wait(500)
+            print("catching object")
+            print("object_count :", len(object_list))
+            print()
 
-                print("catching object..")
-                print("object_count :", len(object_list))
-                print()
+            del object_list[0]
 
-                del object_list[0]
+            catch_motor.run_angle(200, -25, Stop.COAST, True)
 
-                catch_motor.run_angle(200, -25, Stop.COAST, True)
+            wait(1000)
+            while not car_at_start:
+                wait(50)
 
-                wait(1000)
-                while not car_at_start:
-                    wait(50)
+            catch_motor.run_angle(200, 25, Stop.COAST, True)
 
-                catch_motor.run_angle(200, 25, Stop.COAST, True)
 
-    catch_object_thread = Thread(target=_catch_object)
-    catch_object_thread.start()
+def watch_color():
+    global is_running
+    global object_color
+    global object_list
+    global sensed_color
 
-    return catch_object_thread
+    color_buffer = []
+
+    while is_running:
+        color = str(color_sensor.color())
+
+        if color in colors.keys():
+            if color == BLACK:
+                color_buffer = []
+            elif len(color_buffer) != 0 and color_buffer[-1] != color:
+                color_buffer = []
+            elif len(color_buffer) == 0:
+                color_buffer.append(color)
+            elif len(color_buffer) < 15 and color_buffer[-1] == color:
+                color_buffer.append(color)
+            elif len(color_buffer) >= 15:
+                object_color = color_buffer[-1]
+                sensed_color = color_buffer[-1]
+
+        wait(10)
 
 
 def divide_object():
-    def _divide_object():
+    global is_running
+    global object_color
+    global car_at_start
+    global sensed_color
 
-        global object_color
-        global car_at_start
-        global sensed_color
+    while is_running:
+        if object_color is None:
+            continue
 
-        while True:
-            if object_color is None:
-                continue
+        print("dividing object")
+        print("object_color :", object_color)
+        print()
 
-            print("dividing object..")
-            print("object_color :", object_color)
-            print()
+        car_at_start = False
+        sensed_color = None
 
-            car_at_start = False
-            sensed_color = None
+        wheel_motor.position = 0
+        wait(900)
+        wheel_motor.run_angle(200, 95, Stop.COAST, True)
 
-            wheel_motor.position = 0
-            wait(900)
-            wheel_motor.run_angle(200, 95, Stop.COAST, True)
+        message = ujson.dumps({"sender": 25,
+                               "title": "Sending Check",
+                               "msg": colors[object_color]}).encode()
 
-            message = {"sender": 25,
-                       "title": "Sending Check",
-                       "msg": {"item_type": colors[object_color]}}
+        res = None
+        while is_running:
+            res = urequests.post(settings['edge_shipment_address'] + '/api/message/', data=message,
+                                 headers=headers)
+            if res.status_code == 201:
+                print("order specified")
+                print()
+                break
+            wait(1000)
 
-            while True:
-                res = urequests.post(settings['edge_shipment_address'] + '/api/message/', data=message).json()
-                if res.status == 201:
-                    print("repository available..")
-                    print()
-                    break
-                print("repository full..")
-                wait(1000)
+        if not is_running:
+            break
 
-            direction = int(res.reason)
-            if direction == 3:  # right direction
-                divide_motor.run_angle(200, 455, Stop.COAST, True)
-            elif direction == 1:  # left direction
-                divide_motor.run_angle(200, -465, Stop.COAST, True)
-            else:
-                pass
+        direction = int(res.text)
+        if direction == 3:  # right direction
+            divide_motor.run_angle(200, 455, Stop.COAST, True)
+        elif direction == 1:  # left direction
+            divide_motor.run_angle(200, -465, Stop.COAST, True)
+        else:
+            pass
 
-            wheel_motor.run_angle(250, 500, Stop.COAST, True)
-            wait(100)
+        wheel_motor.run_angle(250, 500, Stop.COAST, True)
+        wait(100)
 
-            if direction == 3:
-                divide_motor.run_angle(200, -455, Stop.COAST, True)
-            elif direction == 1:
-                divide_motor.run_angle(200, 465, Stop.COAST, True)
-            else:
-                pass
+        if direction == 3:
+            divide_motor.run_angle(200, -455, Stop.COAST, True)
+        elif direction == 1:
+            divide_motor.run_angle(200, 465, Stop.COAST, True)
+        else:
+            pass
 
-            car_at_start = True
-            object_color = None
-
-    divide_object_thread = Thread(target=_divide_object)
-    divide_object_thread.start()
-
-    return divide_object_thread
+        car_at_start = True
+        object_color = None
 
 
 def sensory():
-    def _sensory():
-        def collect_sensor_values():
-            current_time = time.time()
+    global is_running
 
-            def motor_position(motor):
-                motor.position * (360 / motor.count_per_rot)
+    def collect_sensor_values():
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        colors_rgb = color_sensor.rgb()
 
-            sensory_values = [{"sensorID": "msm_belt_position",
-                               "value": motor_position(belt_motor),
-                               "datetime": current_time},
-                              {"sensorID": "msm_catch_position",
-                               "value": motor_position(catch_motor),
-                               "datetime": current_time},
-                              {"sensorID": "msm_wheel_position",
-                               "value": motor_position(wheel_motor),
-                               "datetime": current_time},
-                              {"sensorID": "msm_divide_position",
-                               "value": motor_position(divide_motor),
-                               "datetime": current_time},
-                              {"sensorID": "mss_color_value_h",
-                               "value": color_sensor.color().h,
-                               "datetime": current_time},
-                              {"sensorID": "mss_color_value_s",
-                               "value": color_sensor.color().s,
-                               "datetime": current_time},
-                              {"sensorID": "mss_color_value_v",
-                               "value": color_sensor.color().v,
-                               "datetime": current_time},
-                              {"sensorID": "mss_distance_value",
-                               "value": distance_sensor.distnace(),
-                               "datetime": current_time}]
+        sensory_values = ujson.dumps([{"sensorID": "s_m_belt_position",
+                                       "value": belt_motor.angle(),
+                                       "datetime": current_time},
+                                      {"sensorID": "s_m_catch_position",
+                                       "value": catch_motor.angle(),
+                                       "datetime": current_time},
+                                      {"sensorID": "s_m_wheel_position",
+                                       "value": wheel_motor.angle(),
+                                       "datetime": current_time},
+                                      {"sensorID": "s_m_divide_position",
+                                       "value": divide_motor.angle(),
+                                       "datetime": current_time},
+                                      {"sensorID": "s_s_color_value_r",
+                                       "value": colors_rgb[0],
+                                       "datetime": current_time},
+                                      {"sensorID": "s_s_color_value_g",
+                                       "value": colors_rgb[1],
+                                       "datetime": current_time},
+                                      {"sensorID": "s_s_color_value_b",
+                                       "value": colors_rgb[2],
+                                       "datetime": current_time},
+                                      {"sensorID": "s_s_distance_value",
+                                       "value": distance_sensor.distance(),
+                                       "datetime": current_time}]).encode()
 
-            urequests.post(settings['edge_shipment_address'] + '/api/sensory/', data=sensory_values)
+        urequests.post(settings['edge_shipment_address'] + '/api/sensory/', data=sensory_values,
+                       headers=headers)
 
-        while True:
-            collect_sensor_values()
-            wait(settings['sensory_frequency'])
-
-    sensory_thread = Thread(target=_sensory)
-    sensory_thread.start()
-
-    return sensory_thread
+    while is_running:
+        collect_sensor_values()
+        wait(settings['sensory_frequency'])
 
 
-threads = [sensory(),
-           run_belt(settings['default_conveyor_belt_speed']),
-           watch_object(),
-           watch_color(),
-           catch_object(),
-           divide_object()]
+def initialize_threads():
+    return [Thread(target=sensory), Thread(target=watch_object), Thread(target=catch_object),
+            Thread(target=watch_color), Thread(target=divide_object)]
+
+
+message = ujson.dumps({"sender": 25,
+                       "title": "Running Check",
+                       "msg": ''}).encode()
+threads = []
 
 while True:
-    pass
+    res = urequests.post(settings['edge_shipment_address'] + '/api/message/', data=message, headers=headers)
+    if res.status_code == 201 and not is_running:
+        print("start")
+        print()
+
+        sensed_color = None
+        sensor_distance = 0
+        car_at_start = True
+        object_list = []
+        object_color = None
+
+        threads = initialize_threads()
+        for thread in threads:
+            thread.start()
+        belt_motor.run(180)
+        is_running = True
+
+    elif res.status_code == 201:
+        pass
+
+
+    elif res.status_code == 204 and is_running:
+        print("stop")
+        print()
+        is_running = False
+        belt_motor.hold()
+
+    elif res.status_code == 204:
+        belt_motor.hold()
+
+    wait(1000)
