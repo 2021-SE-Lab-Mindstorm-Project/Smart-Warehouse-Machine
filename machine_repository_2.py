@@ -131,7 +131,7 @@ def sensory():
                                       {"sensorID": "r2_m_catch_position",
                                        "value": catch_motor.angle(),
                                        "datetime": current_time},
-                                      {"sensorID": "r2_m_color_value_r",
+                                      {"sensorID": "r2_s_color_value_r",
                                        "value": colors_rgb[0],
                                        "datetime": current_time},
                                       {"sensorID": "r2_s_color_value_g",
