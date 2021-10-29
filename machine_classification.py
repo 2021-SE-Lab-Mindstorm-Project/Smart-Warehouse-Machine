@@ -179,20 +179,21 @@ def divide_object():
         if not is_running:
             break
 
-        if object_color == YELLOW:  # right direction
-            divide_motor.run_angle(200, 455, Stop.COAST, True)
-        elif object_color == RED:  # left direction
-            divide_motor.run_angle(200, -465, Stop.COAST, True)
+        direction = int(res.text)
+        if direction == 3:  # right direction
+            divide_motor.run_angle(200, 450, Stop.COAST, True)
+        elif direction == 1:  # left direction
+            divide_motor.run_angle(200, -460, Stop.COAST, True)
         else:
             pass
 
         wheel_motor.run_angle(250, 500, Stop.COAST, True)
         wait(100)
 
-        if object_color == YELLOW:
-            divide_motor.run_angle(200, -455, Stop.COAST, True)
-        elif object_color == RED:
-            divide_motor.run_angle(200, 465, Stop.COAST, True)
+        if direction == 3:
+            divide_motor.run_angle(200, -450, Stop.COAST, True)
+        elif direction == 1:
+            divide_motor.run_angle(200, 460, Stop.COAST, True)
         else:
             pass
 

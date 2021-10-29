@@ -182,9 +182,9 @@ def divide_object():
 
         direction = int(res.text)
         if direction == 3:  # right direction
-            divide_motor.run_angle(200, 455, Stop.COAST, True)
+            divide_motor.run_angle(200, 450, Stop.COAST, True)
         elif direction == 1:  # left direction
-            divide_motor.run_angle(200, -465, Stop.COAST, True)
+            divide_motor.run_angle(200, -460, Stop.COAST, True)
         else:
             pass
 
@@ -192,9 +192,9 @@ def divide_object():
         wait(100)
 
         if direction == 3:
-            divide_motor.run_angle(200, -455, Stop.COAST, True)
+            divide_motor.run_angle(200, -450, Stop.COAST, True)
         elif direction == 1:
-            divide_motor.run_angle(200, 465, Stop.COAST, True)
+            divide_motor.run_angle(200, 460, Stop.COAST, True)
         else:
             pass
 
