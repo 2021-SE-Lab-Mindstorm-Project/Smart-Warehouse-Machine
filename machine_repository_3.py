@@ -4,7 +4,7 @@ from threading import Thread
 
 import ujson
 import urequests
-from pybricks.ev3devices import Motor, ColorSensor
+from pybricks.ev3devices import Motor, ColorSensor, UltrasonicSensor
 from pybricks.parameters import Port, Stop, Direction
 from pybricks.tools import wait
 
@@ -16,6 +16,7 @@ join_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 
 # Initialize the sensors
 color_sensor = ColorSensor(Port.S1)
+distance_sensor = UltrasonicSensor(Port.S2)
 
 # Initialize the constants
 BLACK = 'Color.BLACK'
@@ -132,6 +133,33 @@ def join_object():
             run_join_belt = None
 
 
+def detect_anomaly():
+    global is_running
+    global distance_sensor
+
+    last_distance = 0
+    last_time = time.time()
+    is_anomaly = False
+    while is_running:
+        if time.time() - last_time > 1:
+            distance = distance_sensor.distance()
+            last_time = time.time()
+
+            if distance == last_distance and not is_anomaly:
+                is_anomaly = True
+                message = ujson.dumps({"sender": 24,
+                                       "title": "Anomaly Occurred",
+                                       "msg": ''})
+                urequests.post(settings['edge_repository_address'] + '/api/message/', data=message, headers=headers)
+
+            if distance != last_distance and is_anomaly:
+                is_anomaly = False
+                message = ujson.dumps({"sender": 24,
+                                       "title": "Anomaly Solved",
+                                       "msg": ''})
+                urequests.post(settings['edge_repository_address'] + '/api/message/', data=message, headers=headers)
+
+
 def sensory():
     global is_running
 
@@ -167,7 +195,11 @@ def sensory():
 
 
 def initialize_threads():
-    return [Thread(target=sensory), Thread(target=watch_color), Thread(target=catch_object), Thread(target=join_object)]
+    return [Thread(target=sensory),
+            Thread(target=watch_color),
+            Thread(target=catch_object),
+            Thread(target=join_object),
+            Thread(target=detect_anomaly)]
 
 
 message = ujson.dumps({"sender": 24,
