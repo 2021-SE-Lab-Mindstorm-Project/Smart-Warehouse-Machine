@@ -24,7 +24,8 @@ BLACK = 'Color.BLACK'
 RED = 'Color.RED'
 WHITE = 'Color.WHITE'
 YELLOW = 'Color.YELLOW'
-colors = {BLACK: 0, RED: 1, WHITE: 2, YELLOW: 3}
+BLUE = 'Color.BLUE'
+colors = {BLACK: 0, RED: 1, WHITE: 2, YELLOW: 3, BLUE: 4}
 
 # Initialize variables
 is_running = False
