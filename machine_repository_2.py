@@ -57,7 +57,7 @@ def watch_color():
 
     while is_running:
         color = str(color_sensor.color())
-        if color in (YELLOW, RED, WHITE):
+        if color in (YELLOW, RED, WHITE, BLUE):
             saw_black = False
 
             if len(color_buffer) != 0 and color_buffer[-1] != color:
