@@ -71,6 +71,8 @@ def watch_object():
                 print("two object now")
                 object_list = [time.time() - 5] * 2
 
+            wait_for_belt = False
+
         elif 30 < sensor_distance < 52 and not_in_list() and not wait_for_belt:
             if len(object_buffer) < 30:
                 if len(object_buffer) > 0 and time.time() - object_buffer[0] > 0.5:
